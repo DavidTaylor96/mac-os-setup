@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # macOS Development Environment Setup Script
-# For Azure backend services with Node.js, React, React Native, Docker, Kubernetes
+# For Jamf Self Service integration
 # ------------------------------------------------------------------------------
 
 # Exit on error, but continue if a specific command fails
 set -e
 
 echo "========================================================"
-echo "🚀 Starting macOS development environment setup"
+echo "🚀 Starting macOS development environment setup for Jamf Self Service"
 echo "========================================================"
 
 # Check if macOS version is compatible
@@ -53,9 +53,9 @@ brew list zsh-syntax-highlighting &>/dev/null || brew install zsh-syntax-highlig
 brew list zsh-autosuggestions &>/dev/null || brew install zsh-autosuggestions
 
 # Add plugins to .zshrc if they aren't already there
-if ! grep -q "plugins=(git node npm docker docker-compose kubectl aws azure vscode)" ~/.zshrc; then
+if ! grep -q "plugins=(git node npm)" ~/.zshrc; then
   echo "Updating zsh plugins..."
-  sed -i '' 's/plugins=(git)/plugins=(git node npm docker docker-compose kubectl aws azure vscode)/' ~/.zshrc
+  sed -i '' 's/plugins=(git)/plugins=(git node npm macos)/' ~/.zshrc
 fi
 
 # Add syntax highlighting and autosuggestions if not already there
@@ -125,66 +125,54 @@ nvm install --lts
 nvm use --lts
 nvm alias default 'lts/*'
 
-# Install essential global npm packages
-echo "Installing global npm packages..."
-npm_packages=("npm@latest" "yarn" "typescript" "azure-functions-core-tools@4" "create-react-app" "react-native-cli" "expo-cli" "nodemon" "prettier" "eslint")
-
-for package in "${npm_packages[@]}"; do
-  echo "Installing $package..."
-  npm install -g "$package" || echo "Failed to install $package, continuing..."
-done
-
 # ------------------------------------------------------------------------------
-# Docker and Kubernetes Setup
+# Jamf Self Service Setup
 # ------------------------------------------------------------------------------
-echo "🐳 Setting up Docker and Kubernetes..."
+echo "🍏 Setting up Jamf Self Service..."
 
-# Docker Desktop - only install if not already present
-if [ ! -d "/Applications/Docker.app" ]; then
-  echo "Installing Docker Desktop..."
-  brew install --cask docker
+# Check if Jamf Self Service is already installed
+if [ -d "/Applications/Self Service.app" ]; then
+  echo "Jamf Self Service is already installed."
 else
-  echo "Docker Desktop already installed, skipping."
+  echo "⚠️ Jamf Self Service needs to be installed by your organization."
+  echo "Please contact your IT administrator for enrollment instructions."
+  echo "The enrollment typically requires:"
+  echo "1. Installing a Mobile Device Management (MDM) profile"
+  echo "2. Authenticating with your organization credentials"
+  echo "3. Waiting for Self Service to be pushed to your device"
 fi
 
-# Kubernetes tools - only install if not already present
-k8s_tools=("kubectl" "kubectx" "k9s" "helm" "minikube")
-
-for tool in "${k8s_tools[@]}"; do
-  if ! brew list "$tool" &>/dev/null; then
-    echo "Installing $tool..."
-    brew install "$tool"
-  else
-    echo "$tool already installed, skipping."
+# Add Jamf binary to path if it exists
+if [ -f "/usr/local/bin/jamf" ]; then
+  echo "Jamf binary found at /usr/local/bin/jamf"
+  
+  # Check if jamf is already in path
+  if ! grep -q "alias jamf=" ~/.zshrc; then
+    echo 'alias jamf="/usr/local/bin/jamf"' >> ~/.zshrc
   fi
-done
-
-# ------------------------------------------------------------------------------
-# Azure CLI and Development Tools
-# ------------------------------------------------------------------------------
-echo "☁️ Setting up Azure development tools..."
-
-# Install Azure CLI if not already installed
-if ! brew list azure-cli &>/dev/null; then
-  echo "Installing Azure CLI..."
-  brew install azure-cli
 else
-  echo "Azure CLI already installed, skipping."
+  echo "Jamf binary not found. It will be installed when your Mac is enrolled in Jamf management."
 fi
 
-# Configure Azure CLI extensions if Azure CLI is installed
-if command -v az &>/dev/null; then
-  echo "Installing Azure CLI extensions..."
-  az extension add --name azure-devops 2>/dev/null || echo "azure-devops extension already installed or failed to install."
-  az extension add --name aks-preview 2>/dev/null || echo "aks-preview extension already installed or failed to install."
+# ------------------------------------------------------------------------------
+# Install tools for working with Jamf
+# ------------------------------------------------------------------------------
+echo "🛠️ Installing tools for working with Jamf..."
+
+# Install jq for JSON processing if not already installed
+if ! brew list jq &>/dev/null; then
+  echo "Installing jq for JSON processing..."
+  brew install jq
+else
+  echo "jq already installed, skipping."
 fi
 
-# Install Azure Storage Explorer if not already installed
-if [ ! -d "/Applications/Microsoft Azure Storage Explorer.app" ]; then
-  echo "Installing Azure Storage Explorer..."
-  brew install --cask microsoft-azure-storage-explorer || echo "Failed to install Azure Storage Explorer, continuing..."
+# Install plist editor if not already installed
+if ! brew list --cask gpg-suite &>/dev/null 2>&1; then
+  echo "Installing GPG Suite (includes GPG Keychain for certificate management)..."
+  brew install --cask gpg-suite || echo "Failed to install GPG Suite, continuing..."
 else
-  echo "Azure Storage Explorer already installed, skipping."
+  echo "GPG Suite already installed, skipping."
 fi
 
 # ------------------------------------------------------------------------------
@@ -204,21 +192,14 @@ fi
 if command -v code &>/dev/null; then
   echo "Installing VSCode extensions..."
   vscode_extensions=(
-    "ms-azuretools.vscode-azurefunctions"
-    "ms-azuretools.vscode-docker"
-    "ms-kubernetes-tools.vscode-kubernetes-tools"
-    "ms-vscode.azure-account"
-    "ms-azuretools.vscode-azureterraform"
-    "ms-vscode.vscode-node-azure-pack"
     "dbaeumer.vscode-eslint"
     "esbenp.prettier-vscode"
-    "dsznajder.es7-react-js-snippets"
-    "ms-vscode.vscode-typescript-next"
     "redhat.vscode-yaml"
-    "msjsdiag.vscode-react-native"
     "mhutchie.git-graph"
     "eamodio.gitlens"
-    "GitHub.copilot"
+    "pnp.polacode"
+    "ms-vscode.makefile-tools"
+    "timonwong.shellcheck"
   )
 
   for extension in "${vscode_extensions[@]}"; do
@@ -227,58 +208,87 @@ if command -v code &>/dev/null; then
 fi
 
 # ------------------------------------------------------------------------------
-# Mobile Development Tools
+# Configuration Scripts for Jamf Integration
 # ------------------------------------------------------------------------------
-echo "📱 Installing mobile development tools..."
+echo "📝 Creating configuration scripts for Jamf integration..."
 
-# Install Android Studio if not already installed
-if [ ! -d "/Applications/Android Studio.app" ]; then
-  echo "Installing Android Studio..."
-  brew install --cask android-studio
+# Create directory for Jamf scripts if it doesn't exist
+mkdir -p ~/Documents/JamfScripts
+
+# Create example script to check Jamf enrollment status
+cat > ~/Documents/JamfScripts/check_jamf_status.sh << 'EOL'
+#!/bin/bash
+
+# Check if the Mac is enrolled in Jamf
+if [ -f "/usr/local/bin/jamf" ]; then
+  echo "This Mac appears to be enrolled in Jamf."
+  
+  # Check if Self Service app exists
+  if [ -d "/Applications/Self Service.app" ]; then
+    echo "Jamf Self Service is installed."
+    
+    # Get the version of Self Service
+    SELF_SERVICE_VERSION=$(/usr/bin/defaults read "/Applications/Self Service.app/Contents/Info.plist" CFBundleShortVersionString)
+    echo "Self Service version: $SELF_SERVICE_VERSION"
+  else
+    echo "Jamf Self Service is not installed."
+  fi
+  
+  # Check jamf binary version
+  JAMF_VERSION=$(/usr/local/bin/jamf -version)
+  echo "Jamf binary version: $JAMF_VERSION"
+  
+  # Check last check-in time
+  LAST_CHECKIN=$(/usr/local/bin/jamf checkJSSConnection | grep "Last Check-in time:" | awk -F': ' '{print $2}')
+  if [ -n "$LAST_CHECKIN" ]; then
+    echo "Last check-in time: $LAST_CHECKIN"
+  else
+    echo "Could not determine last check-in time."
+  fi
 else
-  echo "Android Studio already installed, skipping."
+  echo "This Mac is not enrolled in Jamf."
+  echo "Please contact your IT administrator for enrollment instructions."
 fi
+EOL
 
-# Prompt for Xcode installation if not already installed
-if [ ! -d "/Applications/Xcode.app" ]; then
-  echo "Please install Xcode from the Mac App Store..."
-  open macappstore://itunes.apple.com/app/id497799835
-fi
+# Make script executable
+chmod +x ~/Documents/JamfScripts/check_jamf_status.sh
 
-# Install cocoapods for iOS development if not already installed
-if ! brew list cocoapods &>/dev/null; then
-  echo "Installing cocoapods..."
-  brew install cocoapods
+# Create example script for installing Jamf-managed software
+cat > ~/Documents/JamfScripts/install_jamf_apps.sh << 'EOL'
+#!/bin/bash
+
+# This script demonstrates how to install applications from Jamf Self Service via CLI
+# Note: This requires appropriate permissions and that the application is available in Self Service
+
+if [ -f "/usr/local/bin/jamf" ]; then
+  echo "Usage: ./install_jamf_apps.sh [policy_id]"
+  echo "Example: ./install_jamf_apps.sh 123"
+  echo ""
+  echo "To find policy IDs, check with your Jamf administrator."
+  
+  if [ -n "$1" ]; then
+    POLICY_ID="$1"
+    echo "Attempting to run policy ID: $POLICY_ID"
+    /usr/local/bin/jamf policy -id "$POLICY_ID"
+  else
+    echo "No policy ID provided. Script will exit."
+  fi
 else
-  echo "cocoapods already installed, skipping."
+  echo "Jamf binary not found. This Mac is not enrolled in Jamf."
+  echo "Please contact your IT administrator for enrollment instructions."
 fi
+EOL
 
-# Set up Android environment variables in .zshrc if not already there
-if ! grep -q "ANDROID_HOME" ~/.zshrc; then
-  echo "Setting up Android environment variables..."
-  echo 'export ANDROID_HOME=$HOME/Library/Android/sdk' >> ~/.zshrc
-  echo 'export PATH=$PATH:$ANDROID_HOME/emulator' >> ~/.zshrc
-  echo 'export PATH=$PATH:$ANDROID_HOME/tools' >> ~/.zshrc
-  echo 'export PATH=$PATH:$ANDROID_HOME/tools/bin' >> ~/.zshrc
-  echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.zshrc
-fi
+# Make script executable
+chmod +x ~/Documents/JamfScripts/install_jamf_apps.sh
+
+echo "Created example scripts in ~/Documents/JamfScripts/"
 
 # ------------------------------------------------------------------------------
 # Additional Development Tools
 # ------------------------------------------------------------------------------
 echo "🔨 Installing additional development tools..."
-
-# Install database tools if not already installed
-db_tools=("mongodb-compass" "pgadmin4" "azure-data-studio")
-
-for tool in "${db_tools[@]}"; do
-  if ! brew list --cask "$tool" &>/dev/null 2>&1; then
-    echo "Installing $tool..."
-    brew install --cask "$tool" || echo "Failed to install $tool, continuing..."
-  else
-    echo "$tool already installed, skipping."
-  fi
-done
 
 # Install Postman if not already installed
 if [ ! -d "/Applications/Postman.app" ]; then
@@ -287,18 +297,6 @@ if [ ! -d "/Applications/Postman.app" ]; then
 else
   echo "Postman already installed, skipping."
 fi
-
-# Install additional tools if not already installed
-additional_tools=("redis" "ngrok" "awscli")
-
-for tool in "${additional_tools[@]}"; do
-  if ! brew list "$tool" &>/dev/null; then
-    echo "Installing $tool..."
-    brew install "$tool"
-  else
-    echo "$tool already installed, skipping."
-  fi
-done
 
 # ------------------------------------------------------------------------------
 # Cleanup and Finalization
@@ -337,6 +335,12 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-echo "✅ macOS development environment setup complete!"
+echo "✅ macOS development environment setup for Jamf Self Service complete!"
+echo ""
+echo "Important notes:"
+echo "1. Jamf Self Service must be installed through your organization's enrollment process."
+echo "2. Example scripts for Jamf integration are available in ~/Documents/JamfScripts/"
+echo "3. Run ~/Documents/JamfScripts/check_jamf_status.sh to verify your Jamf enrollment status."
+echo ""
 echo "Please restart your terminal to apply all changes."
 echo "========================================================"
